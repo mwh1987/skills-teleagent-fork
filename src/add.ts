@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { existsSync } from 'fs';
@@ -180,6 +181,13 @@ function shortenPath(fullPath: string, cwd: string): string {
     return '.' + fullPath.slice(cwd.length);
   }
   return fullPath;
+}
+
+function computeSingleFileSkillHash(contents: string): string {
+  const hash = createHash('sha256');
+  hash.update('SKILL.md');
+  hash.update(contents);
+  return hash.digest('hex');
 }
 
 /**
@@ -1576,6 +1584,13 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
             agent,
             { global: installGlobally, mode: installMode }
           );
+        } else if (tempDir && skill.path === tempDir && skill.rawContent) {
+          // Remote root-level SKILL.md: install the skill file, not the whole repository.
+          result = await installBlobSkillForAgent(
+            { installName: skill.name, files: [{ path: 'SKILL.md', contents: skill.rawContent }] },
+            agent,
+            { global: installGlobally, mode: installMode }
+          );
         } else {
           // Disk-based install: copy from cloned/local directory
           result = await installSkillForAgent(skill, agent, {
@@ -1715,7 +1730,9 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
             const computedHash =
               blobResult && 'snapshotHash' in skill
                 ? (skill as BlobSkill).snapshotHash
-                : await computeSkillFolderHash(skill.path);
+                : tempDir && skill.path === tempDir && skill.rawContent
+                  ? computeSingleFileSkillHash(skill.rawContent)
+                  : await computeSkillFolderHash(skill.path);
             const skillPathValue = skillFiles[skill.name];
             await addSkillToLocalLock(
               skill.name,

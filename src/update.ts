@@ -20,7 +20,6 @@ import { sanitizeMetadata } from './sanitize.ts';
 import { track } from './telemetry.ts';
 import { agents, isUniversalAgent } from './agents.ts';
 import type { AgentType } from './types.ts';
-import { parseSource } from './source-parser.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -192,17 +191,6 @@ export function getInstallSource(skill: SkippedSkill): string {
     }
   }
   return formatSourceInput(url, skill.ref);
-}
-
-function resolveGitCloneSource(source: string, ref?: string): { url: string; ref?: string } {
-  const parsed = parseSource(formatSourceInput(source, ref));
-  if (parsed.type === 'local' || parsed.type === 'well-known') {
-    throw new Error(`Source ${source} is not a git repository`);
-  }
-  return {
-    url: parsed.url,
-    ref: parsed.ref ?? ref,
-  };
 }
 
 export function printSkippedSkills(skipped: SkippedSkill[]): void {
@@ -388,8 +376,7 @@ export async function updateGlobalSkills(
         continue;
       }
 
-      const cloneSource = resolveGitCloneSource(sourceUrl, firstEntry.ref);
-      tempDir = await cloneRepo(cloneSource.url, cloneSource.ref);
+      tempDir = await cloneRepo(sourceUrl, firstEntry.ref);
       const discoveredPaths = (await discoverSkills(tempDir)).map((skill) => {
         return join(relative(tempDir!, skill.path), 'SKILL.md').split(sep).join('/');
       });
@@ -557,6 +544,7 @@ export async function updateProjectSkills(
 
   for (const [source, skillsForSource] of bySource) {
     const firstEntry = skillsForSource[0]!.entry;
+    const sourceUrl = firstEntry.source;
     const ref = firstEntry.ref;
 
     const allLockedForSource = Object.entries(localLock.skills)
@@ -565,18 +553,9 @@ export async function updateProjectSkills(
 
     let tempDir: string | null = null;
     let deletedSkills: string[] = [];
-    let cloneSource: { url: string; ref?: string };
 
     try {
-      cloneSource = resolveGitCloneSource(firstEntry.source, ref);
-    } catch {
-      console.log(`${DIM}✗ Refusing unsafe git source from skills-lock.json: ${source}${RESET}`);
-      failCount += skillsForSource.length;
-      continue;
-    }
-
-    try {
-      tempDir = await cloneRepo(cloneSource.url, cloneSource.ref);
+      tempDir = await cloneRepo(sourceUrl, ref);
       const discovered = await discoverSkills(tempDir);
 
       const discoveredPaths = discovered.map((s) => {
@@ -605,7 +584,7 @@ export async function updateProjectSkills(
     for (const skill of remainingSkills) {
       const safeName = sanitizeMetadata(skill.name);
       console.log(`${TEXT}Updating ${safeName}...${RESET}`);
-      const installUrl = buildLocalUpdateSource(skill.entry);
+      const installUrl = formatSourceInput(skill.entry.source, skill.entry.ref);
 
       // Preserve Eve subagent placement recorded at install time. The lock stores
       // '' for the root agent, which maps to the `root` keyword for `add --subagent`.

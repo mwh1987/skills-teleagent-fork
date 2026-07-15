@@ -7,6 +7,42 @@ import { stripTerminalEscapes } from './sanitize.ts';
 // const PROJECT_ROOT = join(import.meta.dirname, '..');
 const CLI_PATH = join(import.meta.dirname, 'cli.ts');
 
+// Keep synchronized with the environment checks in @vercel/detect-agent@1.2.3
+// and the additional Cursor checks in detect-agent.ts. Filesystem-based detection
+// such as /opt/.devin is intentionally outside this environment-isolation helper.
+const AGENT_DETECTION_ENV_VARS = new Set(
+  [
+    'AI_AGENT',
+    'ANTIGRAVITY_AGENT',
+    'AUGMENT_AGENT',
+    'CLAUDE_CODE',
+    'CLAUDE_CODE_IS_COWORK',
+    'CLAUDECODE',
+    'CODEX_CI',
+    'CODEX_SANDBOX',
+    'CODEX_THREAD_ID',
+    'COPILOT_ALLOW_ALL',
+    'COPILOT_GITHUB_TOKEN',
+    'COPILOT_MODEL',
+    'CURSOR_AGENT',
+    'CURSOR_EXTENSION_HOST_ROLE',
+    'CURSOR_TRACE_ID',
+    'GEMINI_CLI',
+    'OPENCODE_CLIENT',
+    'REPL_ID',
+  ].map((name) => name.toUpperCase())
+);
+
+function createCliTestEnvironment(overrides?: Record<string, string>): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !AGENT_DETECTION_ENV_VARS.has(name.toUpperCase())
+    )
+  );
+
+  return { ...env, ...overrides };
+}
+
 export function stripAnsi(str: string): string {
   return stripTerminalEscapes(str);
 }
@@ -53,7 +89,7 @@ function createIsolatedTestEnvironment(overrides?: Record<string, string>): {
   return {
     temporaryHome,
     env: {
-      ...process.env,
+      ...createCliTestEnvironment(),
       ...createTestHomeEnvironment(home),
       ...overrides,
     },
@@ -96,9 +132,10 @@ export function runCliOutput(args: string[], cwd?: string): string {
 export function runCliWithInput(
   args: string[],
   input: string,
-  cwd?: string
+  cwd?: string,
+  env?: Record<string, string>
 ): { stdout: string; stderr: string; exitCode: number } {
-  const { env, temporaryHome } = createIsolatedTestEnvironment();
+  const { env: testEnv, temporaryHome } = createIsolatedTestEnvironment(env);
 
   try {
     const output = execFileSync(process.execPath, [CLI_PATH, ...args], {
@@ -106,7 +143,7 @@ export function runCliWithInput(
       cwd,
       input: input + '\n',
       stdio: ['pipe', 'pipe', 'pipe'],
-      env,
+      env: testEnv,
     });
     return { stdout: stripAnsi(output), stderr: '', exitCode: 0 };
   } catch (error: any) {

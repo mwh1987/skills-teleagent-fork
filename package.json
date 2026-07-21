@@ -14,10 +14,10 @@
     "ThirdPartyNoticeText.txt"
   ],
   "scripts": {
-    "build": "node scripts/generate-licenses.ts && obuild",
-    "generate-licenses": "node scripts/generate-licenses.ts",
+    "build": "tsx scripts/generate-licenses.ts && obuild",
+    "generate-licenses": "tsx scripts/generate-licenses.ts",
     "dev": "node src/cli.ts",
-    "exec:test": "node scripts/execute-tests.ts",
+    "exec:test": "tsx scripts/execute-tests.ts",
     "prepublishOnly": "npm run build",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.ts\"",
@@ -108,20 +108,23 @@
     "pochi",
     "promptscript",
     "adal",
+    "teleagent",
     "universal"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vercel-labs/skills.git"
+    "url": "git+https://github.com/mwh1987/skills-teleagent-fork.git"
   },
-  "homepage": "https://github.com/vercel-labs/skills#readme",
+  "homepage": "https://github.com/mwh1987/skills-teleagent-fork#readme",
   "bugs": {
-    "url": "https://github.com/vercel-labs/skills/issues"
+    "url": "https://github.com/mwh1987/skills-teleagent-fork/issues"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "@clack/prompts": "^1.2.0",
+    "@rolldown/binding-linux-x64-gnu": "^1.2.0",
+    "@rolldown/binding-win32-x64-msvc": "^1.2.0",
     "@types/bun": "latest",
     "@types/node": "^22.10.0",
     "@vercel/detect-agent": "^1.2.1",
@@ -131,12 +134,13 @@
     "picocolors": "^1.1.1",
     "prettier": "^3.8.1",
     "simple-git": "^3.36.0",
+    "tsx": "^4.23.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17",
     "xdg-basedir": "^5.1.0"
   },
   "engines": {
-    "node": ">=22.20.0"
+    "node": ">=20.18.0"
   },
   "packageManager": "pnpm@10.17.1",
   "dependencies": {

@@ -71,6 +71,7 @@ export type AgentType =
   | 'pochi'
   | 'promptscript'
   | 'adal'
+  | 'teleagent'
   | 'universal';
 
 export interface Skill {
@@ -84,6 +85,22 @@ export interface Skill {
   metadata?: Record<string, unknown>;
 }
 
+export interface SkillContext {
+  /** Sanitized skill name used as the install directory name */
+  skillName: string;
+  /** Whether the skill was installed globally */
+  isGlobal: boolean;
+  /** Working directory for project-scoped installs */
+  cwd?: string;
+}
+
+export interface PostInstallContext extends SkillContext {
+  /** Canonical installation path for the skill */
+  installPath?: string;
+}
+
+export interface PostRemoveContext extends SkillContext {}
+
 export interface AgentConfig {
   name: string;
   displayName: string;
@@ -95,6 +112,17 @@ export interface AgentConfig {
   showInUniversalList?: boolean;
   /** Whether to display this universal agent in the interactive locked section. Defaults to true. */
   showInUniversalPrompt?: boolean;
+  /**
+   * Optional hook invoked after a skill is successfully installed for this agent.
+   * Used for agent-specific post-install tasks (e.g., TeleAgent permission whitelist registration).
+   * Hook failures are non-fatal.
+   */
+  postInstall?: (ctx: PostInstallContext) => Promise<void>;
+  /**
+   * Optional hook invoked after a skill is successfully removed for this agent.
+   * Counterpart of postInstall — should undo any registration it performed.
+   */
+  postRemove?: (ctx: PostRemoveContext) => Promise<void>;
 }
 
 export interface ParsedSource {

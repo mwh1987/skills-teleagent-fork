@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { readdir, rm, lstat } from 'fs/promises';
 import { join } from 'path';
-import { agents, detectInstalledAgents, getEveSubagents } from './agents.ts';
+import { agents, detectInstalledAgents, getEveSubagents, runPostRemoveHooks } from './agents.ts';
 import { track } from './telemetry.ts';
 import { detectAgent } from './detect-agent.ts';
 import { removeSkillFromLock, getSkillFromLock } from './skill-lock.ts';
@@ -238,6 +238,9 @@ export async function removeCommand(skillNames: string[], options: RemoveOptions
       if (isGlobal) {
         await removeSkillFromLock(skillName);
       }
+
+      // Run post-remove hooks (e.g., remove TeleAgent permission whitelist entry).
+      await runPostRemoveHooks(targetAgents, skillName, isGlobal);
 
       results.push({
         skill: skillName,

@@ -9,8 +9,11 @@ export function parseFrontmatter(raw: string): {
   data: Record<string, unknown>;
   content: string;
 } {
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) return { data: {}, content: raw };
+  // Strip UTF-8 BOM if present — some editors (e.g., Notepad on Windows)
+  // prepend \uFEFF, which prevents the ^--- anchor from matching.
+  const stripped = raw.replace(/^\uFEFF/, '');
+  const match = stripped.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return { data: {}, content: stripped };
   const data = (parseYaml(match[1]!) as Record<string, unknown>) ?? {};
   return { data, content: match[2] ?? '' };
 }

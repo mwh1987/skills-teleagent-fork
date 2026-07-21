@@ -3,6 +3,7 @@ import { join } from 'path';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { xdgConfig } from 'xdg-basedir';
 import type { AgentConfig, AgentType } from './types.ts';
+import { teleagentPostInstall, teleagentPostRemove } from './teleagent-hooks.ts';
 
 const home = homedir();
 // Use xdg-basedir (not env-paths) to match OpenCode/Amp/Goose behavior on all platforms.
@@ -729,6 +730,18 @@ export const agents: Record<AgentType, AgentConfig> = {
     showInUniversalList: false,
     detectInstalled: async () => false,
   },
+  // TeleAgent: 74th agent (added by skills-teleagent-fork)
+  teleagent: {
+    name: 'teleagent',
+    displayName: 'TeleAgent',
+    skillsDir: '.teleagent/skills',
+    globalSkillsDir: join(configHome, 'TeleAgent/skills'),
+    detectInstalled: async () => {
+      return existsSync(join(configHome, 'TeleAgent'));
+    },
+    postInstall: teleagentPostInstall,
+    postRemove: teleagentPostRemove,
+  },
 };
 
 export async function detectInstalledAgents(): Promise<AgentType[]> {
@@ -818,4 +831,59 @@ export function getNonUniversalAgents(): AgentType[] {
  */
 export function isUniversalAgent(type: AgentType): boolean {
   return agents[type].skillsDir === '.agents/skills';
+}
+
+/**
+ * Run postInstall hooks for every target agent that defines one.
+ * Called after a skill is successfully installed. Hook failures are non-fatal.
+ */
+export async function runPostInstallHooks(
+  targetAgents: AgentType[],
+  skillName: string,
+  isGlobal: boolean,
+  options?: { cwd?: string; installPath?: string }
+): Promise<void> {
+  for (const agentType of targetAgents) {
+    const config = agents[agentType];
+    if (config.postInstall) {
+      try {
+        await config.postInstall({
+          skillName,
+          isGlobal,
+          cwd: options?.cwd,
+          installPath: options?.installPath,
+        });
+      } catch (e) {
+        // Hook failures must not break the install flow.
+        console.warn(
+          `[skills] postInstall hook for ${agentType} failed: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Run postRemove hooks for every target agent that defines one.
+ * Called after a skill is successfully removed. Hook failures are non-fatal.
+ */
+export async function runPostRemoveHooks(
+  targetAgents: AgentType[],
+  skillName: string,
+  isGlobal: boolean,
+  options?: { cwd?: string }
+): Promise<void> {
+  for (const agentType of targetAgents) {
+    const config = agents[agentType];
+    if (config.postRemove) {
+      try {
+        await config.postRemove({ skillName, isGlobal, cwd: options?.cwd });
+      } catch (e) {
+        // Hook failures must not break the remove flow.
+        console.warn(
+          `[skills] postRemove hook for ${agentType} failed: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    }
+  }
 }

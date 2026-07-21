@@ -75,6 +75,8 @@ export function createTestHomeEnvironment(home: string): Record<string, string> 
     HERMES_HOME: join(home, '.hermes'),
     AUTOHAND_HOME: join(home, '.autohand'),
     FLATPAK_XDG_CONFIG_HOME: join(home, '.var', 'app'),
+    // TeleAgent test isolation
+    SKILLS_TELEAGENT_TEST_DIR: home,
     DISABLE_TELEMETRY: '1',
   };
 }

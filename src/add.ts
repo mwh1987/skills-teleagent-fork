@@ -65,6 +65,7 @@ import {
   getNonUniversalAgents,
   isUniversalAgent,
   getEveSubagents,
+  runPostInstallHooks,
 } from './agents.ts';
 import {
   track,
@@ -950,6 +951,12 @@ async function handleWellKnownSkills(
   }
 
   if (successful.length > 0) {
+    // Run post-install hooks (e.g., TeleAgent permission whitelist registration).
+    const installedSkillNames = new Set(successful.map((r) => r.skill));
+    for (const skillName of installedSkillNames) {
+      await runPostInstallHooks(targetAgents, skillName, installGlobally);
+    }
+
     const bySkill = new Map<string, typeof results>();
     for (const r of successful) {
       const skillResults = bySkill.get(r.skill) || [];
@@ -1892,6 +1899,12 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     }
 
     if (successful.length > 0) {
+      // Run post-install hooks (e.g., TeleAgent permission whitelist registration).
+      const installedSkillNames = new Set(successful.map((r) => r.skill));
+      for (const skillName of installedSkillNames) {
+        await runPostInstallHooks(targetAgents, skillName, installGlobally);
+      }
+
       const bySkill = new Map<string, typeof results>();
 
       // Group results by plugin name

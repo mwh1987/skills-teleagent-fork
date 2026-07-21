@@ -1,541 +1,217 @@
-# skills
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'bcff41eb-d130-4fa2-828b-bb48e0a4e043'
+  PropagateID: 'bcff41eb-d130-4fa2-828b-bb48e0a4e043'
+  ReservedCode1: '27647a22-d273-45b6-a677-10ab5496b65c'
+  ReservedCode2: '27647a22-d273-45b6-a677-10ab5496b65c'
+---
 
-The CLI for the open agent skills ecosystem.
+# skills-teleagent-fork
 
-<!-- agent-list:start -->
-Supports **OpenCode**, **Claude Code**, **Codex**, **Cursor**, and [69 more](#supported-agents).
-<!-- agent-list:end -->
+**English** | [中文](./README.zh-CN.md)
 
-[![skills.sh](https://skills.sh/b/vercel-labs/skills)](https://skills.sh/vercel-labs/skills)
+A fork of [vercel-labs/skills](https://github.com/vercel-labs/skills) that adds **TeleAgent** as the 74th supported agent — with automatic post-install configuration so skills work on first try, no manual editing required.
 
-## Install a Skill
+## What This Fork Does
 
-```bash
-npx skills add vercel-labs/agent-skills
+The upstream `skills` CLI installs skill files into agent directories and stops there. TeleAgent needs more: a permission whitelist entry, a lock-file record, and frontmatter that follows a strict schema. Without these, a skill installs silently but never shows up in the TeleAgent UI.
+
+This fork adds a `postInstall`/`postRemove` hook pair that bridges that gap. When you run `skills add -a teleagent -g`, five steps happen automatically:
+
+| Step | What | File touched |
+|------|------|-------------|
+| 1 | **Permission whitelist** — adds `allow` for the skill | `~/.config/TeleAgent/TeleAgent.jsonc` |
+| 2 | **Lock sync** — writes a lock entry so the skill appears in the manager UI | `~/.config/TeleAgent/skills/.skills_store_lock.json` |
+| 3 | **Frontmatter normalization** — strips BOM, fills `name_cn`/`description_cn`, injects `create_source`, removes non-standard fields, truncates description | `<skill-dir>/SKILL.md` |
+| 4 | **Document cleanup** — removes `README.md`, `LICENSE`, etc. that TeleAgent's validator rejects | `<skill-dir>/` |
+| 5 | **Windows compatibility check** — warns on `.sh` scripts and Unix-only commands | terminal output |
+
+`skills remove -a teleagent -g` reverses steps 1 and 2.
+
+> [!NOTE]
+> TeleAgent scans the skills directory at startup. **Restart the TeleAgent client** after installing or removing a skill.
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js >= 20.18.0
+- TeleAgent client installed on Windows
+
+### Install the CLI
+
+Since this is a fork (not published to npm), build and link locally:
+
+```powershell
+git clone https://github.com/mwh1987/skills-teleagent-fork.git
+cd skills-teleagent-fork
+
+$env:COREPACK_INTEGRITY_KEYS = "0"   # bypass corepack signature check
+pnpm install
+pnpm exec obuild
+npm link                              # makes `skills` available globally
 ```
 
-## Use a Skill Without Installing
+Verify: `skills --help` should print usage info.
 
-Generate a prompt for one skill, or start a supported coding agent interactively:
-
-```bash
-npx skills use vercel-labs/agent-skills@web-design-guidelines | claude
-npx skills use vercel-labs/agent-skills --skill web-design-guidelines --agent claude-code
-```
-
-`skills use` resolves sources the same way as `skills add`, writes the selected skill files to a temporary directory, and prints only the generated prompt to stdout unless `--agent` is provided. With `--agent`, it starts one supported agent interactively with the generated prompt.
-
-### Source Formats
+### Install a Skill to TeleAgent
 
 ```bash
-# GitHub shorthand (owner/repo)
-npx skills add vercel-labs/agent-skills
+# From a GitHub repo
+skills add vercel-labs/agent-skills -a teleagent -g
 
-# Full GitHub URL
-npx skills add https://github.com/vercel-labs/agent-skills
+# A specific skill from a repo
+skills add vercel-labs/agent-skills -s web-design-guidelines -a teleagent -g
 
-# Direct path to a skill in a repo
-npx skills add https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines
+# All skills in a repo
+skills add vercel-labs/agent-skills --skill '*' -a teleagent -g
 
-# GitLab URL
-npx skills add https://gitlab.com/org/repo
-
-# Any git URL
-npx skills add git@github.com:vercel-labs/agent-skills.git
-
-# Local path
-npx skills add ./my-local-skills
+# From a local directory
+skills add ./my-skill -a teleagent -g
 ```
 
-### Options
+Then **restart TeleAgent** — the skill appears in the skill manager.
 
-| Option                    | Description                                                                                                                                        |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-g, --global`            | Install to user directory instead of project                                                                                                       |
-| `-a, --agent <agents...>` | <!-- agent-names:start -->Target specific agents (e.g., `claude-code`, `codex`). See [Supported Agents](#supported-agents)<!-- agent-names:end --> |
-| `-s, --skill <skills...>` | Install specific skills by name (use `'*'` for all skills)                                                                                         |
-| `-l, --list`              | List available skills without installing                                                                                                           |
-| `--copy`                  | Copy files instead of symlinking to agent directories                                                                                              |
-| `-y, --yes`               | Skip all confirmation prompts                                                                                                                      |
-| `--all`                   | Install all skills to all agents without prompts                                                                                                   |
-
-### Examples
+### Manage Installed Skills
 
 ```bash
-# List skills in a repository
-npx skills add vercel-labs/agent-skills --list
+# List installed skills
+skills list
 
-# Install specific skills
-npx skills add vercel-labs/agent-skills --skill frontend-design --skill skill-creator
+# Update a skill
+skills update my-skill -g
 
-# Install a skill with spaces in the name (must be quoted)
-npx skills add owner/repo --skill "Convex Best Practices"
-
-# Install to specific agents
-npx skills add vercel-labs/agent-skills -a claude-code -a opencode
-
-# Non-interactive installation (CI/CD friendly)
-npx skills add vercel-labs/agent-skills --skill frontend-design -g -a claude-code -y
-
-# Install all skills from a repo to all agents
-npx skills add vercel-labs/agent-skills --all
-
-# Install all skills to specific agents
-npx skills add vercel-labs/agent-skills --skill '*' -a claude-code
-
-# Install specific skills to all agents
-npx skills add vercel-labs/agent-skills --agent '*' --skill frontend-design
+# Remove a skill (auto-cleans whitelist + lock)
+skills remove my-skill -g
 ```
 
-### Installation Scope
+## Browse Skills
 
-| Scope       | Flag      | Location            | Use Case                                      |
-| ----------- | --------- | ------------------- | --------------------------------------------- |
-| **Project** | (default) | `./<agent>/skills/` | Committed with your project, shared with team |
-| **Global**  | `-g`      | `~/<agent>/skills/` | Available across all projects                 |
+Discover skills at **[skills.sh](https://skills.sh)** — a community directory ranked by install count.
 
-### Installation Methods
-
-When installing interactively, you can choose:
-
-| Method                    | Description                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| **Symlink** (Recommended) | Creates symlinks from each agent to a canonical copy. Single source of truth, easy updates. |
-| **Copy**                  | Creates independent copies for each agent. Use when symlinks aren't supported.              |
-
-## Other Commands
-
-| Command                      | Description                                   |
-| ---------------------------- | --------------------------------------------- |
-| `npx skills use <source>`    | Use one skill without installing              |
-| `npx skills list`            | List installed skills (alias: `ls`)           |
-| `npx skills find [query]`    | Search for skills interactively or by keyword |
-| `npx skills remove [skills]` | Remove installed skills from agents           |
-| `npx skills update [skills]` | Update installed skills to latest versions    |
-| `npx skills init [name]`     | Create a new SKILL.md template                |
-
-### `skills list`
-
-List all installed skills. Similar to `npm ls`.
+This fork also ships a built-in skill (`skills/find-skills`) that helps TeleAgent users search and install skills conversationally. Install it to your TeleAgent:
 
 ```bash
-# List all installed skills (project and global)
-npx skills list
-
-# List only global skills
-npx skills ls -g
-
-# Filter by specific agents
-npx skills ls -a claude-code -a cursor
+skills add ./skills/find-skills -a teleagent -g
 ```
-
-### `skills find`
-
-Search for skills interactively or by keyword.
-
-```bash
-# Interactive search (fzf-style)
-npx skills find
-
-# Search by keyword
-npx skills find typescript
-
-# Search across every repository owned by an organization or user
-npx skills find react --owner vercel
-```
-
-### `skills update`
-
-```bash
-# Update all skills (interactive scope prompt)
-npx skills update
-
-# Update a single skill by name
-npx skills update my-skill
-
-# Update multiple specific skills
-npx skills update frontend-design web-design-guidelines
-
-# Update only global or project skills
-npx skills update -g
-npx skills update -p
-
-# Non-interactive (auto-detects scope: project if in a project, else global)
-npx skills update -y
-```
-
-| Option          | Description                                                               |
-| --------------- | ------------------------------------------------------------------------- |
-| `-g, --global`  | Only update global skills                                                 |
-| `-p, --project` | Only update project skills                                                |
-| `-y, --yes`     | Skip scope prompt (auto-detect: project if in a project dir, else global) |
-| `[skills...]`   | Update specific skills by name instead of all                             |
-
-### `skills init`
-
-```bash
-# Create SKILL.md in current directory
-npx skills init
-
-# Create a new skill in a subdirectory
-npx skills init my-skill
-```
-
-### `skills remove`
-
-Remove installed skills from agents.
-
-```bash
-# Remove interactively (select from installed skills)
-npx skills remove
-
-# Remove specific skill by name
-npx skills remove web-design-guidelines
-
-# Remove multiple skills
-npx skills remove frontend-design web-design-guidelines
-
-# Remove from global scope
-npx skills remove --global web-design-guidelines
-
-# Remove from specific agents only
-npx skills remove --agent claude-code cursor my-skill
-
-# Remove all installed skills without confirmation
-npx skills remove --all
-
-# Remove all skills from a specific agent
-npx skills remove --skill '*' -a cursor
-
-# Remove a specific skill from all agents
-npx skills remove my-skill --agent '*'
-
-# Use 'rm' alias
-npx skills rm my-skill
-```
-
-| Option         | Description                                      |
-| -------------- | ------------------------------------------------ |
-| `-g, --global` | Remove from global scope (~/) instead of project |
-| `-a, --agent`  | Remove from specific agents (use `'*'` for all)  |
-| `-s, --skill`  | Specify skills to remove (use `'*'` for all)     |
-| `-y, --yes`    | Skip confirmation prompts                        |
-| `--all`        | Shorthand for `--skill '*' --agent '*' -y`       |
-
-## What are Agent Skills?
-
-Agent skills are reusable instruction sets that extend your coding agent's capabilities. They're defined in `SKILL.md`
-files with YAML frontmatter containing a `name` and `description`.
-
-Skills let agents perform specialized tasks like:
-
-- Generating release notes from git history
-- Creating PRs following your team's conventions
-- Integrating with external tools (Linear, Notion, etc.)
-
-Discover skills at **[skills.sh](https://skills.sh)**
 
 ## Supported Agents
 
-Skills can be installed to any of these agents:
+This fork supports all 74 agents from the upstream CLI. TeleAgent is the 74th and the only one with post-install hooks; the other 73 behave exactly as upstream.
 
-<!-- supported-agents:start -->
-| Agent | `--agent` | Project Path | Global Path |
-|-------|-----------|--------------|-------------|
-| AiderDesk | `aider-desk` | `.aider-desk/skills/` | `~/.aider-desk/skills/` |
-| Amp, Replit, Universal | `amp`, `replit`, `universal` | `.agents/skills/` | `~/.config/agents/skills/` |
-| Antigravity | `antigravity` | `.agents/skills/` | `~/.gemini/antigravity/skills/` |
-| Antigravity CLI | `antigravity-cli` | `.agents/skills/` | `~/.gemini/antigravity-cli/skills/` |
-| AstrBot | `astrbot` | `data/skills/` | `~/.astrbot/data/skills/` |
-| Autohand Code CLI | `autohand-code` | `.autohand/skills/` | `~/.autohand/skills/` |
-| Augment | `augment` | `.augment/skills/` | `~/.augment/skills/` |
-| IBM Bob | `bob` | `.bob/skills/` | `~/.bob/skills/` |
-| Claude Code | `claude-code` | `.claude/skills/` | `~/.claude/skills/` |
-| OpenClaw | `openclaw` | `skills/` | `~/.openclaw/skills/` |
-| Cline, Dexto, Kimi Code CLI, Loaf, Warp, Zed | `cline`, `dexto`, `kimi-code-cli`, `loaf`, `warp`, `zed` | `.agents/skills/` | `~/.agents/skills/` |
-| CodeArts Agent | `codearts-agent` | `.codeartsdoer/skills/` | `~/.codeartsdoer/skills/` |
-| CodeBuddy | `codebuddy` | `.codebuddy/skills/` | `~/.codebuddy/skills/` |
-| Codemaker | `codemaker` | `.codemaker/skills/` | `~/.codemaker/skills/` |
-| Code Studio | `codestudio` | `.codestudio/skills/` | `~/.codestudio/skills/` |
-| Codex | `codex` | `.agents/skills/` | `~/.codex/skills/` |
-| Command Code | `command-code` | `.commandcode/skills/` | `~/.commandcode/skills/` |
-| Continue | `continue` | `.continue/skills/` | `~/.continue/skills/` |
-| Cortex Code | `cortex` | `.cortex/skills/` | `~/.snowflake/cortex/skills/` |
-| Crush | `crush` | `.crush/skills/` | `~/.config/crush/skills/` |
-| Cursor | `cursor` | `.agents/skills/` | `~/.cursor/skills/` |
-| Deep Agents | `deepagents` | `.agents/skills/` | `~/.deepagents/agent/skills/` |
-| Devin for Terminal | `devin` | `.devin/skills/` | `~/.config/devin/skills/` |
-| Droid | `droid` | `.factory/skills/` | `~/.factory/skills/` |
-| Eve | `eve` | `agent/skills/` | N/A (project-only) |
-| Firebender | `firebender` | `.agents/skills/` | `~/.firebender/skills/` |
-| ForgeCode | `forgecode` | `.forge/skills/` | `~/.forge/skills/` |
-| Gemini CLI | `gemini-cli` | `.agents/skills/` | `~/.gemini/skills/` |
-| GitHub Copilot | `github-copilot` | `.agents/skills/` | `~/.copilot/skills/` |
-| Goose | `goose` | `.goose/skills/` | `~/.config/goose/skills/` |
-| Hermes Agent | `hermes-agent` | `.hermes/skills/` | `~/.hermes/skills/` |
-| inference.sh | `inference-sh` | `.inferencesh/skills/` | `~/.inferencesh/skills/` |
-| Jazz | `jazz` | `.jazz/skills/` | `~/.jazz/skills/` |
-| Junie | `junie` | `.junie/skills/` | `~/.junie/skills/` |
-| iFlow CLI | `iflow-cli` | `.iflow/skills/` | `~/.iflow/skills/` |
-| Kilo Code | `kilo` | `.kilocode/skills/` | `~/.kilocode/skills/` |
-| Kiro CLI | `kiro-cli` | `.kiro/skills/` | `~/.kiro/skills/` |
-| Kode | `kode` | `.kode/skills/` | `~/.kode/skills/` |
-| Lingma | `lingma` | `.lingma/skills/` | `~/.lingma/skills/` |
-| MCPJam | `mcpjam` | `.mcpjam/skills/` | `~/.mcpjam/skills/` |
-| Mistral Vibe | `mistral-vibe` | `.vibe/skills/` | `~/.vibe/skills/` |
-| Moxby | `moxby` | `.moxby/skills/` | `~/.moxby/skills/` |
-| Mux | `mux` | `.mux/skills/` | `~/.mux/skills/` |
-| OpenCode | `opencode` | `.agents/skills/` | `~/.config/opencode/skills/` |
-| OpenHands | `openhands` | `.openhands/skills/` | `~/.openhands/skills/` |
-| Ona | `ona` | `.ona/skills/` | `~/.ona/skills/` |
-| Pi | `pi` | `.pi/skills/` | `~/.pi/agent/skills/` |
-| Qoder | `qoder` | `.qoder/skills/` | `~/.qoder/skills/` |
-| Qoder CN | `qoder-cn` | `.qoder/skills/` | `~/.qoder-cn/skills/` |
-| Qwen Code | `qwen-code` | `.qwen/skills/` | `~/.qwen/skills/` |
-| Reasonix | `reasonix` | `.reasonix/skills/` | `~/.reasonix/skills/` |
-| Rovo Dev | `rovodev` | `.rovodev/skills/` | `~/.rovodev/skills/` |
-| Roo Code | `roo` | `.roo/skills/` | `~/.roo/skills/` |
-| Tabnine CLI | `tabnine-cli` | `.tabnine/agent/skills/` | `~/.tabnine/agent/skills/` |
-| Terramind | `terramind` | `.terramind/skills/` | `~/.terramind/skills/` |
-| Tinycloud | `tinycloud` | `.tinycloud/skills/` | `~/.tinycloud/skills/` |
-| Trae | `trae` | `.trae/skills/` | `~/.trae/skills/` |
-| Trae CN | `trae-cn` | `.trae/skills/` | `~/.trae-cn/skills/` |
-| Windsurf | `windsurf` | `.windsurf/skills/` | `~/.codeium/windsurf/skills/` |
-| ZCode | `zcode` | `.zcode/skills/` | `~/.zcode/skills/` |
-| Zencoder, Zenflow | `zencoder`, `zenflow` | `.zencoder/skills/` | `~/.zencoder/skills/` |
-| Neovate | `neovate` | `.neovate/skills/` | `~/.neovate/skills/` |
-| Pochi | `pochi` | `.pochi/skills/` | `~/.pochi/skills/` |
-| PromptScript | `promptscript` | `.agents/skills/` | N/A (project-only) |
-| AdaL | `adal` | `.adal/skills/` | `~/.adal/skills/` |
-<!-- supported-agents:end -->
+| Agent | `--agent` | Global path |
+|-------|-----------|-------------|
+| TeleAgent | `teleagent` | `~/.config/TeleAgent/skills/` |
+| Claude Code | `claude-code` | `~/.claude/skills/` |
+| Cursor | `cursor` | `~/.cursor/skills/` |
+| Codex | `codex` | `~/.codex/skills/` |
+| OpenCode | `opencode` | `~/.config/opencode/skills/` |
+| ...and 69 more | | |
 
-> [!NOTE]
-> **Kiro CLI users:** The default agent automatically loads skills from `.kiro/skills/` and `~/.kiro/skills/` — no
-> configuration needed. If you use a **custom agent**, add skills to its `resources` in `.kiro/agents/<agent>.json`:
->
-> ```json
-> {
->   "resources": ["skill://.kiro/skills/**/SKILL.md"]
-> }
-> ```
+Run `skills list -a '*'` to see all agents, or check the [upstream README](https://github.com/vercel-labs/skills#supported-agents) for the full table.
 
-The CLI automatically detects which coding agents you have installed. If none are detected, you'll be prompted to select
-which agents to install to.
-
-## Creating Skills
-
-Skills are directories containing a `SKILL.md` file with YAML frontmatter:
-
-```markdown
----
-name: my-skill
-description: What this skill does and when to use it
----
-
-# My Skill
-
-Instructions for the agent to follow when this skill is activated.
-
-## When to Use
-
-Describe the scenarios where this skill should be used.
-
-## Steps
-
-1. First, do this
-2. Then, do that
-```
-
-### Required Fields
-
-- `name`: Unique identifier (lowercase, hyphens allowed)
-- `description`: Brief explanation of what the skill does
-
-### Optional Fields
-
-- `metadata.internal`: Set to `true` to hide the skill from normal discovery. Internal skills are only visible and
-  installable when `INSTALL_INTERNAL_SKILLS=1` is set. Useful for work-in-progress skills or skills meant only for
-  internal tooling.
-
-```markdown
----
-name: my-internal-skill
-description: An internal skill not shown by default
-metadata:
-  internal: true
----
-```
-
-### Skill Discovery
-
-The CLI searches for skills in these locations within a repository. Each
-skill container directory is walked one level deep for the common flat
-layout (`skills/<name>/SKILL.md`) and one extra level deep for catalog
-layouts (`skills/<category>/<name>/SKILL.md`). A `SKILL.md` discovered at
-the shallower level shadows anything nested below it. Use `--full-depth`
-to also discover `SKILL.md` files outside these container directories
-(e.g. under `examples/` or `tests/`).
-
-<!-- skill-discovery:start -->
-- Root directory (if it contains `SKILL.md`)
-- `skills/`
-- `skills/.curated/`
-- `skills/.experimental/`
-- `skills/.system/`
-- `.aider-desk/skills/`
-- `.agents/skills/`
-- `data/skills/`
-- `.autohand/skills/`
-- `.augment/skills/`
-- `.bob/skills/`
-- `.claude/skills/`
-- `.codeartsdoer/skills/`
-- `.codebuddy/skills/`
-- `.codemaker/skills/`
-- `.codestudio/skills/`
-- `.commandcode/skills/`
-- `.continue/skills/`
-- `.cortex/skills/`
-- `.crush/skills/`
-- `.devin/skills/`
-- `.factory/skills/`
-- `agent/skills/`
-- `.forge/skills/`
-- `.goose/skills/`
-- `.hermes/skills/`
-- `.inferencesh/skills/`
-- `.jazz/skills/`
-- `.junie/skills/`
-- `.iflow/skills/`
-- `.kilocode/skills/`
-- `.kiro/skills/`
-- `.kode/skills/`
-- `.lingma/skills/`
-- `.mcpjam/skills/`
-- `.vibe/skills/`
-- `.moxby/skills/`
-- `.mux/skills/`
-- `.openhands/skills/`
-- `.ona/skills/`
-- `.pi/skills/`
-- `.qoder/skills/`
-- `.qwen/skills/`
-- `.reasonix/skills/`
-- `.rovodev/skills/`
-- `.roo/skills/`
-- `.tabnine/agent/skills/`
-- `.terramind/skills/`
-- `.tinycloud/skills/`
-- `.trae/skills/`
-- `.windsurf/skills/`
-- `.zcode/skills/`
-- `.zencoder/skills/`
-- `.neovate/skills/`
-- `.pochi/skills/`
-- `.adal/skills/`
-<!-- skill-discovery:end -->
-
-### Plugin Manifest Discovery
-
-If `.claude-plugin/marketplace.json` or `.claude-plugin/plugin.json` exists, skills declared in those files are also discovered:
-
-```json
-// .claude-plugin/marketplace.json
-{
-  "metadata": { "pluginRoot": "./plugins" },
-  "plugins": [
-    {
-      "name": "my-plugin",
-      "source": "my-plugin",
-      "skills": ["./skills/review", "./skills/test"]
-    }
-  ]
-}
-```
-
-This enables compatibility with the [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) ecosystem. Skill paths declared in a manifest are searched at their declared depth and are not subject to the depth-2 catalog walk described above.
-
-If no skills are found in standard locations, a recursive search is performed.
-
-## Compatibility
-
-Skills are generally compatible across agents since they follow a
-shared [Agent Skills specification](https://agentskills.io). However, some features may be agent-specific:
-
-| Feature         | OpenCode | OpenHands | Claude Code | Cline | CodeBuddy | Codex | Command Code | Kiro CLI | Cursor | Antigravity | Roo Code | Github Copilot | Amp | OpenClaw | Neovate | Pi  | Qoder | Zencoder |
-| --------------- | -------- | --------- | ----------- | ----- | --------- | ----- | ------------ | -------- | ------ | ----------- | -------- | -------------- | --- | -------- | ------- | --- | ----- | -------- |
-| Basic skills    | Yes      | Yes       | Yes         | Yes   | Yes       | Yes   | Yes          | Yes      | Yes    | Yes         | Yes      | Yes            | Yes | Yes      | Yes     | Yes | Yes   | Yes      |
-| `allowed-tools` | Yes      | Yes       | Yes         | Yes   | Yes       | Yes   | Yes          | No       | Yes    | Yes         | Yes      | Yes            | Yes | Yes      | Yes     | Yes | Yes   | No       |
-| `context: fork` | No       | No        | Yes         | No    | No        | No    | No           | No       | No     | No          | No       | No             | No  | No       | No      | No  | No    | No       |
-| Hooks           | No       | No        | Yes         | Yes   | No        | No    | No           | Yes      | No     | No          | No       | No             | No  | No       | No      | No  | No    | No       |
-
-## Troubleshooting
-
-### "No skills found"
-
-Ensure the repository contains valid `SKILL.md` files with both `name` and `description` in the frontmatter.
-
-### Skill not loading in agent
-
-- Verify the skill was installed to the correct path
-- Check the agent's documentation for skill loading requirements
-- Ensure the `SKILL.md` frontmatter is valid YAML
-
-### Permission errors
-
-Ensure you have write access to the target directory.
-
-## Environment Variables
-
-| Variable                  | Description                                                                |
-| ------------------------- | -------------------------------------------------------------------------- |
-| `INSTALL_INTERNAL_SKILLS` | Set to `1` or `true` to show and install skills marked as `internal: true` |
-| `DISABLE_TELEMETRY`       | Set to disable anonymous usage telemetry                                   |
-| `DO_NOT_TRACK`            | Alternative way to disable telemetry                                       |
+### Installing to Multiple Agents
 
 ```bash
-# Install internal skills
-INSTALL_INTERNAL_SKILLS=1 npx skills add vercel-labs/agent-skills --list
+# TeleAgent + Claude Code
+skills add vercel-labs/agent-skills -a teleagent -a claude-code -g
+
+# All detected agents
+skills add vercel-labs/agent-skills -a '*' -g
 ```
 
-## Telemetry
+## TeleAgent Frontmatter Schema
 
-This CLI collects anonymous usage data to help improve the tool. No personal information is collected.
+TeleAgent requires `SKILL.md` frontmatter to follow a strict schema. The post-install normalizer enforces these rules automatically, but skill authors should aim for compliance upfront:
 
-Telemetry is automatically disabled in CI environments.
+**Allowed fields** (any others are stripped):
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `name` | Yes | Lowercase + hyphens, must match directory name |
+| `description` | Yes | <= 1024 chars, no angle brackets |
+| `name_cn` | Yes | Chinese display name (falls back to `name`) |
+| `description_cn` | Yes | Chinese description (falls back to `description`) |
+| `create_source` | No | Auto-injected as `skillhub-import` if missing |
+| `license` | No | SPDX identifier |
+| `allowed-tools` | No | Tool restrictions |
+| `metadata` | No | Arbitrary metadata object |
+
+```yaml
+---
+name: my-skill
+description: Brief description of what the skill does
+name_cn: 我的技能
+description_cn: 技能功能简介
+create_source: skillhub-import
+---
+```
+
+## Differences from Upstream
+
+| Area | Upstream (`vercel-labs/skills`) | This fork |
+|------|-------------------------------|-----------|
+| Agents | 73 | 74 (adds `teleagent`) |
+| Post-install hooks | Not supported | `postInstall`/`postRemove` hook system |
+| TeleAgent config | Manual editing | Automatic whitelist + lock sync |
+| Frontmatter | As-is | Auto-normalized to TeleAgent schema |
+| Windows checks | None | Warns on `.sh` scripts & Unix commands |
+| Node engine | `>=22` | `>=20.18.0` (TeleAgent runtime) |
+
+All upstream commands (`add`, `remove`, `update`, `list`, `find`, `use`, `init`) work identically. The fork is additive — it never changes behavior for the other 73 agents.
+
+## Project Layout
+
+```
+skills-teleagent-fork/
+├── src/
+│   ├── agents.ts              # Agent registry (teleagent entry + hook runners)
+│   ├── teleagent-hooks.ts     # TeleAgent post-install/remove hook logic
+│   ├── frontmatter.ts         # YAML frontmatter parser (BOM-safe)
+│   ├── add.ts                 # `skills add` command
+│   ├── remove.ts              # `skills remove` command
+│   └── types.ts               # AgentType, PostInstallContext, etc.
+├── tests/
+│   └── teleagent-hooks.test.ts # 52 unit tests for hook logic
+├── skills/
+│   └── find-skills/           # Built-in skill for TeleAgent users
+├── scripts/
+│   └── sync-agents.ts         # README/keyword generator
+└── package.json
+```
+
+## Development
+
+```powershell
+# Install dependencies
+$env:COREPACK_INTEGRITY_KEYS = "0"
+pnpm install
+
+# Build
+pnpm exec obuild
+
+# Type-check
+pnpm exec tsc --noEmit
+
+# Run TeleAgent hook tests
+pnpm exec vitest run tests/teleagent-hooks.test.ts
+
+# Run all tests (note: some require network/git access)
+pnpm exec vitest run
+```
 
 ## Related Links
 
+- [Upstream repo](https://github.com/vercel-labs/skills)
 - [Agent Skills Specification](https://agentskills.io)
 - [Skills Directory](https://skills.sh)
-- [Amp Skills Documentation](https://ampcode.com/manual#agent-skills)
-- [Antigravity Skills Documentation](https://antigravity.google/docs/skills)
-- [Factory AI / Droid Skills Documentation](https://docs.factory.ai/cli/configuration/skills)
-- [Claude Code Skills Documentation](https://code.claude.com/docs/en/skills)
-- [OpenClaw Skills Documentation](https://docs.openclaw.ai/tools/skills)
-- [Cline Skills Documentation](https://docs.cline.bot/features/skills)
-- [CodeBuddy Skills Documentation](https://www.codebuddy.ai/docs/ide/Features/Skills)
-- [Codex Skills Documentation](https://developers.openai.com/codex/skills)
-- [Command Code Skills Documentation](https://commandcode.ai/docs/skills)
-- [Crush Skills Documentation](https://github.com/charmbracelet/crush?tab=readme-ov-file#agent-skills)
-- [Cursor Skills Documentation](https://cursor.com/docs/context/skills)
-- [Firebender Skills Documentation](https://docs.firebender.com/multi-agent/skills)
-- [Gemini CLI Skills Documentation](https://geminicli.com/docs/cli/skills/)
-- [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills)
-- [iFlow CLI Skills Documentation](https://platform.iflow.cn/en/cli/examples/skill)
-- [Kimi Code CLI Skills Documentation](https://moonshotai.github.io/kimi-code/en/customization/skills)
-- [Kiro CLI Skills Documentation](https://kiro.dev/docs/cli/custom-agents/configuration-reference/#skill-resources)
-- [Kode Skills Documentation](https://github.com/shareAI-lab/kode/blob/main/docs/skills.md)
-- [OpenCode Skills Documentation](https://opencode.ai/docs/skills)
-- [Qwen Code Skills Documentation](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/)
-- [OpenHands Skills Documentation](https://docs.openhands.ai/modules/usage/how-to/using-skills)
-- [Pi Skills Documentation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/skills.md)
-- [Qoder Skills Documentation](https://docs.qoder.com/cli/Skills)
-- [Replit Skills Documentation](https://docs.replit.com/replitai/skills)
-- [Roo Code Skills Documentation](https://docs.roocode.com/features/skills)
-- [Trae Skills Documentation](https://docs.trae.ai/ide/skills)
 - [Vercel Agent Skills Repository](https://github.com/vercel-labs/agent-skills)
 
 ## License
 
 MIT
+
+> AI生成

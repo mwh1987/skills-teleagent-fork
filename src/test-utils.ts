@@ -3,6 +3,11 @@ import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { stripTerminalEscapes } from './sanitize.ts';
+import { createRequire } from 'module';
+import { pathToFileURL } from 'url';
+
+const require = createRequire(import.meta.url);
+const tsxUrl = pathToFileURL(require.resolve('tsx')).toString();
 
 // const PROJECT_ROOT = join(import.meta.dirname, '..');
 const CLI_PATH = join(import.meta.dirname, 'cli.ts');
@@ -36,7 +41,10 @@ const AGENT_DETECTION_ENV_VARS = new Set(
 function createCliTestEnvironment(overrides?: Record<string, string>): NodeJS.ProcessEnv {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
-      ([name]) => !AGENT_DETECTION_ENV_VARS.has(name.toUpperCase())
+      ([name]) =>
+        !AGENT_DETECTION_ENV_VARS.has(name.toUpperCase()) &&
+        !name.toUpperCase().startsWith('ANTIGRAVITY_') &&
+        !name.toUpperCase().startsWith('AGY_')
     )
   );
 
@@ -107,7 +115,10 @@ export function runCli(
   const { env: testEnv, temporaryHome } = createIsolatedTestEnvironment(env);
 
   try {
-    const output = execFileSync(process.execPath, [CLI_PATH, ...args], {
+    const nodeArgs = CLI_PATH.endsWith('.ts')
+      ? ['--import', tsxUrl, CLI_PATH, ...args]
+      : [CLI_PATH, ...args];
+    const output = execFileSync(process.execPath, nodeArgs, {
       encoding: 'utf-8',
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -140,7 +151,10 @@ export function runCliWithInput(
   const { env: testEnv, temporaryHome } = createIsolatedTestEnvironment(env);
 
   try {
-    const output = execFileSync(process.execPath, [CLI_PATH, ...args], {
+    const nodeArgs = CLI_PATH.endsWith('.ts')
+      ? ['--import', tsxUrl, CLI_PATH, ...args]
+      : [CLI_PATH, ...args];
+    const output = execFileSync(process.execPath, nodeArgs, {
       encoding: 'utf-8',
       cwd,
       input: input + '\n',

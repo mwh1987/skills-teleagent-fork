@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsx scripts/generate-licenses.ts && obuild",
     "generate-licenses": "tsx scripts/generate-licenses.ts",
-    "dev": "node src/cli.ts",
+    "dev": "tsx src/cli.ts",
     "exec:test": "tsx scripts/execute-tests.ts",
     "prepublishOnly": "npm run build",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\"",
